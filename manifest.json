@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.madddtone.flow-tracker",
+  "name": "Flow Tracker",
+  "version": "0.2.0",
+  "author": "madddtone",
+  "license": "MIT",
+  "description": "Interactive flow-chart canvas. Renders flow.json compiled by flowc from a repo's flow.md, with click-to-trace routes and an attribute inspector.",
+  "kinds": ["overlay", "bar-widget"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "overlay": "FlowTracker.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Flow Tracker",
+    "description": "One bar icon that opens the interactive flow-chart canvas.",
+    "category": "Productivity",
+    "aliases": ["flow", "flowchart", "flow-tracker", "flowc"],
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {},
+    "schema": []
+  }
+}
