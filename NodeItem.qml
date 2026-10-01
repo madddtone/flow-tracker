@@ -19,6 +19,13 @@ Item {
   readonly property var r: node.rect
   readonly property bool isDecision: node.type === "decision"
   readonly property bool isTerminal: node.type === "start" || node.type === "end"
+  readonly property bool hasSubflow: (node.subflowJson || "").length > 0
+  readonly property string meta: {
+    var a = node.actor || ""
+    var c = node.code || ""
+    if (a.length > 0 && c.length > 0) return a + "  ·  " + c
+    return a.length > 0 ? a : c
+  }
 
   width: r.w
   height: r.h
@@ -88,7 +95,7 @@ Item {
   Rectangle {
     visible: !nodeItem.isDecision && !nodeItem.isTerminal
     width: 4
-    height: parent.height - 20
+    height: parent.height - 22
     radius: 2
     color: nodeItem.typeAccent()
     anchors.left: parent.left
@@ -96,60 +103,107 @@ Item {
     anchors.verticalCenter: parent.verticalCenter
   }
 
-  Column {
-    anchors.centerIn: parent
-    width: parent.width - (nodeItem.isDecision ? 34 : (nodeItem.isTerminal ? 20 : 24))
-    spacing: 3
+  // Content is clipped to a padded box so text can never overlap the border,
+  // rounded corners, or the diamond edges.
+  Item {
+    id: content
+    anchors.fill: parent
+    anchors.leftMargin: nodeItem.isDecision ? 34 : (nodeItem.isTerminal ? 20 : 16)
+    anchors.rightMargin: nodeItem.isDecision ? 34 : (nodeItem.isTerminal ? 20 : 16)
+    anchors.topMargin: nodeItem.isDecision ? 12 : 9
+    anchors.bottomMargin: nodeItem.isDecision ? 12 : 9
+    clip: true
 
-    Text {
+    // Decisions: only the title and id, centered in the diamond.
+    Column {
+      visible: nodeItem.isDecision
+      anchors.centerIn: parent
       width: parent.width
-      text: nodeItem.node.title || nodeItem.node.id
-      color: Color.foreground
-      font.family: Style.font.family
-      font.pixelSize: 14
-      font.bold: true
-      horizontalAlignment: Text.AlignHCenter
-      elide: Text.ElideRight
-      maximumLineCount: 2
-      wrapMode: Text.WordWrap
+      spacing: 2
+      Text {
+        width: parent.width
+        text: nodeItem.node.title || nodeItem.node.id
+        color: Color.foreground
+        font.family: Style.font.family
+        font.pixelSize: 12
+        font.bold: true
+        horizontalAlignment: Text.AlignHCenter
+        elide: Text.ElideRight
+        maximumLineCount: 2
+        wrapMode: Text.WordWrap
+      }
+      Text {
+        width: parent.width
+        text: nodeItem.node.id
+        color: Color.muted
+        font.family: Style.font.family
+        font.pixelSize: 9
+        horizontalAlignment: Text.AlignHCenter
+        elide: Text.ElideRight
+      }
+    }
+
+    // Other shapes: title/id from the top, meta/subflow pinned to the bottom.
+    Column {
+      visible: !nodeItem.isDecision
+      anchors { top: parent.top; left: parent.left; right: parent.right }
+      spacing: 2
+      Text {
+        width: parent.width
+        text: nodeItem.node.title || nodeItem.node.id
+        color: Color.foreground
+        font.family: Style.font.family
+        font.pixelSize: 13
+        font.bold: true
+        horizontalAlignment: Text.AlignHCenter
+        elide: Text.ElideRight
+        maximumLineCount: nodeItem.isTerminal ? 1 : 2
+        wrapMode: Text.WordWrap
+      }
+      Text {
+        width: parent.width
+        text: nodeItem.node.id
+        color: Color.muted
+        font.family: Style.font.family
+        font.pixelSize: 9
+        horizontalAlignment: Text.AlignHCenter
+        elide: Text.ElideRight
+      }
     }
 
     Text {
-      width: parent.width
-      text: nodeItem.node.id
+      id: metaText
+      visible: !nodeItem.isDecision && text.length > 0
+      anchors {
+        left: parent.left
+        right: parent.right
+        bottom: subflowStrip.visible ? subflowStrip.top : parent.bottom
+        bottomMargin: subflowStrip.visible ? 3 : 0
+      }
+      text: nodeItem.meta
       color: Color.muted
       font.family: Style.font.family
-      font.pixelSize: 10
+      font.pixelSize: 9
       horizontalAlignment: Text.AlignHCenter
       elide: Text.ElideRight
     }
 
-    Row {
-      anchors.horizontalCenter: parent.horizontalCenter
-      spacing: 6
-      visible: (nodeItem.node.actor || "").length > 0 || (nodeItem.node.code || "").length > 0
-
+    Rectangle {
+      id: subflowStrip
+      visible: !nodeItem.isDecision && nodeItem.hasSubflow
+      anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+      height: 15
+      radius: 4
+      color: Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.20)
       Text {
-        visible: (nodeItem.node.actor || "").length > 0
-        text: nodeItem.node.actor || ""
-        color: nodeItem.typeAccent()
+        anchors.centerIn: parent
+        text: "↳ open subflow · " + (nodeItem.node.subflowNodes || 0)
+        color: Color.accent
         font.family: Style.font.family
-        font.pixelSize: 9
-      }
-      Text {
-        visible: (nodeItem.node.actor || "").length > 0 && (nodeItem.node.code || "").length > 0
-        text: "·"
-        color: Color.muted
-        font.pixelSize: 9
-      }
-      Text {
-        visible: (nodeItem.node.code || "").length > 0
-        text: nodeItem.node.code || ""
-        color: Color.muted
-        font.family: Style.font.family
-        font.pixelSize: 9
-        elide: Text.ElideMiddle
-        width: Math.min(implicitWidth, parent.parent.width - 10)
+        font.pixelSize: 8
+        elide: Text.ElideRight
+        width: parent.width - 6
+        horizontalAlignment: Text.AlignHCenter
       }
     }
   }
@@ -161,25 +215,5 @@ Item {
     cursorShape: Qt.PointingHandCursor
     onClicked: nodeItem.activated(nodeItem.node.id)
     onDoubleClicked: nodeItem.opened(nodeItem.node.id)
-  }
-
-  // Subflow affordance: double-click (or Enter / the inspector button) drills in.
-  Rectangle {
-    visible: (nodeItem.node.subflowJson || "").length > 0
-    anchors.right: parent.right
-    anchors.top: parent.top
-    anchors.margins: 5
-    radius: 4
-    color: Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.22)
-    implicitWidth: subflowText.implicitWidth + 10
-    implicitHeight: 13
-    Text {
-      id: subflowText
-      anchors.centerIn: parent
-      text: "↳ " + (nodeItem.node.subflowNodes || 0)
-      color: Color.accent
-      font.family: Style.font.family
-      font.pixelSize: 8
-    }
   }
 }
