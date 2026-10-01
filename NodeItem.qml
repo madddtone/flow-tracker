@@ -14,6 +14,7 @@ Item {
   property bool isDim: false
 
   signal activated(string id)
+  signal opened(string id)
 
   readonly property var r: node.rect
   readonly property bool isDecision: node.type === "decision"
@@ -159,5 +160,26 @@ Item {
     hoverEnabled: true
     cursorShape: Qt.PointingHandCursor
     onClicked: nodeItem.activated(nodeItem.node.id)
+    onDoubleClicked: nodeItem.opened(nodeItem.node.id)
+  }
+
+  // Subflow affordance: double-click (or Enter / the inspector button) drills in.
+  Rectangle {
+    visible: (nodeItem.node.subflowJson || "").length > 0
+    anchors.right: parent.right
+    anchors.top: parent.top
+    anchors.margins: 5
+    radius: 4
+    color: Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.22)
+    implicitWidth: subflowText.implicitWidth + 10
+    implicitHeight: 13
+    Text {
+      id: subflowText
+      anchors.centerIn: parent
+      text: "↳ " + (nodeItem.node.subflowNodes || 0)
+      color: Color.accent
+      font.family: Style.font.family
+      font.pixelSize: 8
+    }
   }
 }

@@ -19,6 +19,8 @@ Plugin id: `io.github.madddtone.flow-tracker`
   (Logic, Requirements, Prerequisites, Inputs, Outputs, Failure Modes, Notes).
 - **Project switcher** — press `p` (or click the *Projects* chip) to list every
   project in the central store and switch between them without leaving the canvas.
+- **Subflow drill-in** — a `type: subflow` node shows a `↳ N` badge and opens
+  its nested flow on the same canvas, with a breadcrumb to navigate back.
 - Edge conditions/labels appear on the traced route.
 - Zoom (scroll), pan (drag), fit (`f`), search (`/`).
 - Live: reloads when `flowc watch` recompiles `flow.json`, and when the active
@@ -70,6 +72,8 @@ o.bind("SUPER + CTRL + G", "Flow Tracker", "omarchy-shell shell toggle io.github
 | Key / input | Action |
 |---|---|
 | click node | select + trace its routes |
+| double-click / Enter on a `subflow` node | drill into that subflow |
+| Backspace / Esc | go back up a subflow (then clear / close) |
 | `←` / `↑` | step to a predecessor |
 | `→` / `↓` | step to a successor |
 | `d` | toggle immediate vs full-downstream trace |

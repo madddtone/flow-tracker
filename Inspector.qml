@@ -10,6 +10,7 @@ Rectangle {
   property var byId: ({})
   signal closeRequested()
   signal goTo(string id)
+  signal openSubflow(string id)
 
   color: Color.menu.background
   border.width: 1
@@ -95,6 +96,36 @@ Rectangle {
           color: Color.muted
           font.family: Style.font.family
           font.pixelSize: 11
+        }
+      }
+
+      Rectangle {
+        visible: !!(inspector.node && inspector.node.subflowJson)
+        width: body.width
+        height: 32
+        radius: 6
+        color: subMa.containsMouse ? Color.menu.selectedBackground
+          : Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.16)
+        Text {
+          anchors.left: parent.left
+          anchors.leftMargin: 10
+          anchors.right: parent.right
+          anchors.rightMargin: 10
+          anchors.verticalCenter: parent.verticalCenter
+          text: "Open subflow  →  " + (inspector.node && inspector.node.subflowName ? inspector.node.subflowName : "")
+            + (inspector.node && inspector.node.subflowNodes ? "  (" + inspector.node.subflowNodes + " nodes)" : "")
+          color: Color.accent
+          font.family: Style.font.family
+          font.pixelSize: 11
+          font.bold: true
+          elide: Text.ElideRight
+        }
+        MouseArea {
+          id: subMa
+          anchors.fill: parent
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: inspector.openSubflow(inspector.node.id)
         }
       }
 

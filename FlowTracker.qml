@@ -39,6 +39,23 @@ Item {
   property bool projectsOpen: false
   property int projectsIndex: 0
 
+  // Subflow navigation: rootJsonPath is the active project's document;
+  // flowJsonPath is whatever is currently rendered (root or a subflow).
+  property string rootJsonPath: ""
+  property var navStack: []      // ancestors: [{path, title}], root first
+  property string viewTitle: ""  // title of the currently rendered document
+  property var breadcrumbs: []
+
+  onNavStackChanged: root.rebuildBreadcrumbs()
+  onViewTitleChanged: root.rebuildBreadcrumbs()
+
+  function rebuildBreadcrumbs() {
+    var out = []
+    for (var i = 0; i < root.navStack.length; i++) out.push(root.navStack[i].title || "flow")
+    if (root.navStack.length > 0) out.push(root.viewTitle || root.flowName)
+    root.breadcrumbs = out
+  }
+
   property string selectedId: ""
   property string mode: "successors"   // successors | downstream
   property var hlNodes: ({})
@@ -64,7 +81,14 @@ Item {
     root.opened = true
     var p = FM.parseJSON(payloadJson || "")
     if (p && typeof p === "object") {
-      if (p.path) { root.flowJsonPath = String(p.path); flowView.path = root.flowJsonPath }
+      if (p.path) {
+        root.rootJsonPath = String(p.path)
+        root.navStack = []
+        root.viewTitle = ""
+        root.resetGraph()
+        root.flowJsonPath = root.rootJsonPath
+        flowView.path = root.flowJsonPath
+      }
       if (p.active) root.activePath = String(p.active)
     }
     activeView.reload()
@@ -112,6 +136,9 @@ Item {
   function clearActiveFlow() {
     resetGraph()
     root.flowJsonPath = ""
+    root.rootJsonPath = ""
+    root.navStack = []
+    root.viewTitle = ""
     flowView.path = ""
     root.projectName = ""
     root.activeProjectId = ""
@@ -133,13 +160,55 @@ Item {
     root.projectName = a.name || ""
     root.activeProjectId = a.projectId || ""
     root.compileError = a.error ? String(a.error) : ""
-    if (a.jsonFile !== root.flowJsonPath) {
-      // New project: clear the old graph before the new flow.json arrives.
+    if (a.jsonFile !== root.rootJsonPath) {
+      // New project: clear the old graph and any subflow navigation.
       resetGraph()
+      root.rootJsonPath = a.jsonFile
+      root.navStack = []
+      root.viewTitle = a.name || ""
       root.flowJsonPath = a.jsonFile
       flowView.path = a.jsonFile
     }
     return true
+  }
+
+  // ------------------------------------------------------------ subflows
+
+  function enterSubflow(id) {
+    var n = root.byId[id]
+    if (!n || !n.subflowJson) return
+    var stack = root.navStack.slice()
+    stack.push({ path: root.flowJsonPath, title: root.viewTitle.length > 0 ? root.viewTitle : root.projectName })
+    root.navStack = stack
+    root.viewTitle = n.subflowName || n.title || n.id
+    root.resetGraph()
+    root.flowJsonPath = n.subflowJson
+    flowView.path = n.subflowJson
+  }
+
+  function goBack() {
+    if (root.navStack.length === 0) return false
+    var stack = root.navStack.slice()
+    var e = stack.pop()
+    root.navStack = stack
+    root.viewTitle = e.title
+    root.resetGraph()
+    root.flowJsonPath = e.path
+    flowView.path = e.path
+    return true
+  }
+
+  function goToCrumb(depth) {
+    if (depth >= root.navStack.length) return
+    var stack = root.navStack.slice()
+    while (stack.length > depth) {
+      var e = stack.pop()
+      root.viewTitle = e.title
+      root.flowJsonPath = e.path
+    }
+    root.navStack = stack
+    root.resetGraph()
+    flowView.path = root.flowJsonPath
   }
 
   function loadFlow(text) {
@@ -450,8 +519,19 @@ Item {
         switch (event.key) {
         case Qt.Key_Escape:
           if (root.hasSelection) root.clearSelection()
+          else if (root.navStack.length > 0) root.goBack()
           else root.dismiss()
           event.accepted = true
+          break
+        case Qt.Key_Backspace:
+          if (root.goBack()) event.accepted = true
+          break
+        case Qt.Key_Return:
+        case Qt.Key_Enter:
+          if (root.hasSelection && root.byId[root.selectedId] && root.byId[root.selectedId].subflowJson) {
+            root.enterSubflow(root.selectedId)
+            event.accepted = true
+          }
           break
         case Qt.Key_Q:
           root.dismiss(); event.accepted = true; break
@@ -551,6 +631,7 @@ Item {
             isAncestor: root.nodeLevel(modelData.id) === "ancestor"
             isDim: root.isDimNode(modelData.id)
             onActivated: function(id) { root.selectNode(id) }
+            onOpened: function(id) { root.enterSubflow(id) }
           }
         }
       }
@@ -678,10 +759,68 @@ Item {
       }
     }
 
+    // ---------------------------------------------------------- breadcrumb
+
+    Item {
+      id: navBar
+      anchors { top: header.bottom; left: parent.left; right: parent.right }
+      height: root.navStack.length > 0 ? 28 : 0
+      clip: true
+
+      Rectangle {
+        anchors.fill: parent
+        color: Qt.rgba(Color.background.r, Color.background.g, Color.background.b, 0.9)
+        border.width: 1
+        border.color: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.08)
+      }
+
+      Row {
+        anchors.fill: parent
+        anchors.leftMargin: 18
+        anchors.rightMargin: 18
+        spacing: 4
+
+        Repeater {
+          model: root.breadcrumbs
+          delegate: Item {
+            required property var modelData
+            required property int index
+            width: crumbText.implicitWidth + 18
+            height: navBar.height
+
+            Text {
+              id: crumbText
+              anchors.verticalCenter: parent.verticalCenter
+              text: modelData
+              color: index === root.navStack.length ? Color.foreground : Color.accent
+              font.family: Style.font.family
+              font.pixelSize: 11
+              font.bold: index === root.navStack.length
+            }
+            Text {
+              visible: index < root.navStack.length
+              anchors.left: crumbText.right
+              anchors.leftMargin: 4
+              anchors.verticalCenter: parent.verticalCenter
+              text: "›"
+              color: Color.muted
+              font.pixelSize: 11
+            }
+            MouseArea {
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: index < root.navStack.length ? Qt.PointingHandCursor : Qt.ArrowCursor
+              onClicked: root.goToCrumb(index)
+            }
+          }
+        }
+      }
+    }
+
     // ---------------------------------------------------------- error banner
 
     Rectangle {
-      anchors { top: header.bottom; left: parent.left; right: parent.right }
+      anchors { top: navBar.bottom; left: parent.left; right: parent.right }
       height: Math.max(errText.implicitHeight + 14, 0)
       visible: root.compileError.length > 0 || root.loadError.length > 0
       color: Qt.rgba(Color.urgent.r, Color.urgent.g, Color.urgent.b, 0.22)
@@ -735,12 +874,13 @@ Item {
       id: inspector
       visible: root.hasSelection
       width: root.inspectorWidth
-      anchors { top: header.bottom; right: parent.right; bottom: parent.bottom }
+      anchors { top: navBar.bottom; right: parent.right; bottom: parent.bottom }
       node: root.byId[root.selectedId]
       edges: root.edgesModel
       byId: root.byId
       onCloseRequested: root.clearSelection()
       onGoTo: function(id) { root.jumpTo(id) }
+      onOpenSubflow: function(id) { root.enterSubflow(id) }
     }
 
     // ---------------------------------------------------------- search
@@ -934,7 +1074,7 @@ Item {
       color: Qt.rgba(Color.background.r, Color.background.g, Color.background.b, 0.85)
       Text {
         anchors.centerIn: parent
-        text: "click node: trace · ←/→: step route · d: next/full · p: projects · /: find node · scroll: zoom · drag: pan · f: fit · esc: back/close · q: close"
+        text: "click node: trace · dbl-click subflow: open · ←/→: step · d: next/full · p: projects · /: find · backspace: back · scroll: zoom · drag: pan · f: fit · q: close"
         color: Color.muted
         font.family: Style.font.family
         font.pixelSize: 10
