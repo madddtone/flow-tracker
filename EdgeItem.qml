@@ -9,8 +9,8 @@ import "FlowModel.js" as FM
 Shape {
   id: edgeItem
   required property var edge
-  required property var sourceNode
-  required property var targetNode
+  required property var sourceRect
+  required property var targetRect
 
   // level: normal | selected | successor | downstream | ancestor | dim
   property string level: "normal"
@@ -22,9 +22,9 @@ Shape {
   width: worldW
   height: worldH
 
-  readonly property bool ready: sourceNode !== undefined && sourceNode !== null
-    && targetNode !== undefined && targetNode !== null
-  readonly property var g: ready ? FM.edgeGeometry(sourceNode, targetNode, edge.back === true)
+  readonly property bool ready: sourceRect !== undefined && sourceRect !== null
+    && targetRect !== undefined && targetRect !== null
+  readonly property var g: ready ? FM.edgeGeometry(sourceRect, targetRect, edge.back === true)
     : ({ x1: 0, y1: 0, x2: 0, y2: 0, c1x: 0, c1y: 0, c2x: 0, c2y: 0 })
   readonly property var a: ready ? FM.arrow(g, 11)
     : ({ tipX: 0, tipY: 0, leftX: 0, leftY: 0, rightX: 0, rightY: 0 })

@@ -65,6 +65,8 @@ Item {
   property real zoom: 1.0
   property real panX: 40
   property real panY: 40
+  // Manual node positions (id -> {x,y}), applied on top of the compiled layout.
+  property var posOverrides: ({})
 
   property bool searchOpen: false
   property string searchText: ""
@@ -128,9 +130,57 @@ Item {
     root.flowName = ""
     root.selectedId = ""
     root.sourceHash = ""
+    root.posOverrides = ({})
     root.hlNodes = ({})
     root.hlEdges = ({})
     root.upNodes = ({})
+  }
+
+  // ---------------------------------------------------------- node positions
+
+  function nodePos(node) {
+    var o = root.posOverrides[node.id]
+    return o ? o : { x: node.rect.x, y: node.rect.y }
+  }
+
+  function effRect(id) {
+    var n = root.byId[id]
+    if (!n) return null
+    var o = root.posOverrides[id]
+    return { x: o ? o.x : n.rect.x, y: o ? o.y : n.rect.y, w: n.rect.w, h: n.rect.h }
+  }
+
+  function dragNode(id, dxScene, dyScene) {
+    var n = root.byId[id]
+    if (!n) return
+    var dx = dxScene / root.zoom
+    var dy = dyScene / root.zoom
+    var o = root.posOverrides[id]
+    var x = (o ? o.x : n.rect.x) + dx
+    var y = (o ? o.y : n.rect.y) + dy
+    var m = {}
+    for (var k in root.posOverrides) m[k] = root.posOverrides[k]
+    m[id] = { x: x, y: y }
+    root.posOverrides = m
+  }
+
+  function effBounds() {
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    for (var i = 0; i < root.nodesModel.length; i++) {
+      var r = root.effRect(root.nodesModel[i].id)
+      if (!r) continue
+      minX = Math.min(minX, r.x)
+      minY = Math.min(minY, r.y)
+      maxX = Math.max(maxX, r.x + r.w)
+      maxY = Math.max(maxY, r.y + r.h)
+    }
+    if (!isFinite(minX)) return root.bounds
+    return { minX: minX, minY: minY, maxX: maxX, maxY: maxY, width: maxX - minX, height: maxY - minY }
+  }
+
+  function resetPositions() {
+    root.posOverrides = ({})
+    root.fit()
   }
 
   function clearActiveFlow() {
@@ -365,7 +415,7 @@ Item {
   }
 
   function fit() {
-    var b = root.bounds
+    var b = root.effBounds()
     var vw = root.usableWidth
     var vh = viewport.height
     if (vw <= 0 || vh <= 0 || b.width <= 0 || b.height <= 0) return
@@ -378,9 +428,10 @@ Item {
   }
 
   function resetView() {
+    var b = root.effBounds()
     root.zoom = 1.0
-    root.panX = 40 - root.bounds.minX
-    root.panY = 40 - root.bounds.minY
+    root.panX = 40 - b.minX
+    root.panY = 40 - b.minY
   }
 
   function centerOn(id) {
@@ -545,6 +596,8 @@ Item {
           root.fit(); event.accepted = true; break
         case Qt.Key_0:
           root.resetView(); event.accepted = true; break
+        case Qt.Key_R:
+          root.resetPositions(); event.accepted = true; break
         case Qt.Key_Plus:
         case Qt.Key_Equal:
           root.zoomAt(1.15, root.usableWidth / 2, viewport.height / 2); event.accepted = true; break
@@ -609,12 +662,12 @@ Item {
           delegate: EdgeItem {
             required property var modelData
             edge: modelData
-            sourceNode: root.byId[modelData.from]
-            targetNode: root.byId[modelData.to]
-            worldW: root.bounds.width + 200
-            worldH: root.bounds.height + 200
+            sourceRect: root.effRect(modelData.from)
+            targetRect: root.effRect(modelData.to)
+            worldW: 40000
+            worldH: 40000
             level: root.edgeLevel(modelData)
-            visible: sourceNode !== undefined && targetNode !== undefined
+            visible: sourceRect !== undefined && targetRect !== undefined
           }
         }
 
@@ -623,8 +676,8 @@ Item {
           delegate: NodeItem {
             required property var modelData
             node: modelData
-            x: modelData.rect.x
-            y: modelData.rect.y
+            x: root.nodePos(modelData).x
+            y: root.nodePos(modelData).y
             isSelected: modelData.id === root.selectedId
             isSuccessor: root.nodeLevel(modelData.id) === "successor"
             isDownstream: root.nodeLevel(modelData.id) === "downstream"
@@ -632,6 +685,7 @@ Item {
             isDim: root.isDimNode(modelData.id)
             onActivated: function(id) { root.selectNode(id) }
             onOpened: function(id) { root.enterSubflow(id) }
+            onDragged: function(id, dx, dy) { root.dragNode(id, dx, dy) }
           }
         }
       }
@@ -1074,7 +1128,7 @@ Item {
       color: Qt.rgba(Color.background.r, Color.background.g, Color.background.b, 0.85)
       Text {
         anchors.centerIn: parent
-        text: "click node: trace · dbl-click subflow: open · ←/→: step · d: next/full · p: projects · /: find · backspace: back · scroll: zoom · drag: pan · f: fit · q: close"
+        text: "click: trace · drag node: move · drag bg: pan · dbl-click subflow: open · d: next/full · /: find · p: projects · r: reset layout · f: fit · q: close"
         color: Color.muted
         font.family: Style.font.family
         font.pixelSize: 10

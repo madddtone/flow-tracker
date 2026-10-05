@@ -15,6 +15,7 @@ Item {
 
   signal activated(string id)
   signal opened(string id)
+  signal dragged(string id, real dxScene, real dyScene)
 
   readonly property var r: node.rect
   readonly property bool isDecision: node.type === "decision"
@@ -213,7 +214,37 @@ Item {
     anchors.fill: parent
     hoverEnabled: true
     cursorShape: Qt.PointingHandCursor
-    onClicked: nodeItem.activated(nodeItem.node.id)
-    onDoubleClicked: nodeItem.opened(nodeItem.node.id)
+    // Manual drag: pointer is tracked in scene coordinates so moving the node
+    // does not feed back into the pointer position (which would stall it).
+    property bool pressed: false
+    property bool dragged: false
+    property point pressScene: Qt.point(0, 0)
+    property point lastScene: Qt.point(0, 0)
+
+    onPressed: function(mouse) {
+      pressed = true
+      dragged = false
+      pressScene = mapToItem(null, mouse.x, mouse.y)
+      lastScene = pressScene
+    }
+    onPositionChanged: function(mouse) {
+      if (!pressed) return
+      var cur = mapToItem(null, mouse.x, mouse.y)
+      if (!dragged && (Math.abs(cur.x - pressScene.x) + Math.abs(cur.y - pressScene.y) > 4))
+        dragged = true
+      if (dragged) {
+        nodeItem.dragged(nodeItem.node.id, cur.x - lastScene.x, cur.y - lastScene.y)
+        lastScene = cur
+      }
+    }
+    onReleased: pressed = false
+    onClicked: {
+      if (!dragged) nodeItem.activated(nodeItem.node.id)
+      dragged = false
+    }
+    onDoubleClicked: {
+      if (!dragged) nodeItem.opened(nodeItem.node.id)
+      dragged = false
+    }
   }
 }

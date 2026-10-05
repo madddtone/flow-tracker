@@ -92,8 +92,8 @@ function ancestors(edges, id) {
 }
 
 function edgeGeometry(s, t, back) {
-  var sx = s.rect.x, sy = s.rect.y, sw = s.rect.w, sh = s.rect.h
-  var tx = t.rect.x, ty = t.rect.y, tw = t.rect.w, th = t.rect.h
+  var sx = s.x, sy = s.y, sw = s.w, sh = s.h
+  var tx = t.x, ty = t.y, tw = t.w, th = t.h
 
   if (back) {
     var bx1 = sx + sw / 2
