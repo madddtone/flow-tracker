@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.madddtone.flow-tracker",
   "name": "Flow Tracker",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "author": "madddtone",
   "license": "MIT",
   "description": "Interactive flow-chart canvas. Renders flow.json compiled by flowc from a repo's flow.md, with click-to-trace routes and an attribute inspector.",

@@ -11,6 +11,9 @@ Plugin id: `io.github.madddtone.flow-tracker`
 - Adds a **bar icon** (sitemap glyph) in the right section; click it to open
   the canvas. Also bound to `SUPER + CTRL + G`.
 - Draws the whole flow with a deterministic layered layout.
+- **Table nodes** (`type: table`) render a header + columns with PK/FK badges —
+  the first 5 key columns on the node, all of them in the inspector. Handy for
+  data-flow diagrams.
 - **Click a node** to trace its routes: immediate next steps are highlighted,
   everything else dims. Press `d` to widen the trace to the full downstream
   subgraph. Upstream (ancestor) nodes stay faintly lit for orientation.

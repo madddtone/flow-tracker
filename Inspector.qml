@@ -165,6 +165,61 @@ Rectangle {
         }
       }
 
+      Column {
+        visible: !!(inspector.node && inspector.node.columns && inspector.node.columns.length > 0)
+        width: body.width
+        spacing: 2
+        Text {
+          text: "Columns"
+          color: Color.accent
+          font.family: Style.font.family
+          font.pixelSize: 12
+          font.bold: true
+          topPadding: 4
+        }
+        Repeater {
+          model: inspector.node ? inspector.node.columns : []
+          delegate: Row {
+            required property var modelData
+            width: body.width
+            spacing: 6
+            Text {
+              width: Math.max(90, body.width * 0.34)
+              text: modelData.name
+              color: Color.foreground
+              font.family: Style.font.family
+              font.pixelSize: 11
+              font.bold: true
+              elide: Text.ElideRight
+            }
+            Text {
+              anchors.verticalCenter: parent.verticalCenter
+              text: modelData.type || ""
+              color: Color.muted
+              font.family: Style.font.family
+              font.pixelSize: 10
+            }
+            Text {
+              visible: modelData.pk === true
+              anchors.verticalCenter: parent.verticalCenter
+              text: "PK"
+              color: "#4ec9b0"
+              font.family: Style.font.family
+              font.pixelSize: 9
+              font.bold: true
+            }
+            Text {
+              visible: (modelData.fk || "").length > 0
+              anchors.verticalCenter: parent.verticalCenter
+              text: "FK " + (modelData.fk || "")
+              color: "#4ec9b0"
+              font.family: Style.font.family
+              font.pixelSize: 9
+            }
+          }
+        }
+      }
+
       Rectangle {
         visible: !!(inspector.node && inspector.node.sectionOrder && inspector.node.sectionOrder.length > 0)
         width: parent.width; height: 1

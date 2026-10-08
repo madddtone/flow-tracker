@@ -173,8 +173,28 @@ function searchNodes(nodes, query) {
   var out = []
   for (var i = 0; i < nodes.length; i++) {
     var n = nodes[i]
-    var hay = (n.id + " " + (n.title || "") + " " + (n.actor || "") + " " + (n.tags ? n.tags.join(" ") : "")).toLowerCase()
+    var cols = ""
+    if (n.columns) {
+      for (var c = 0; c < n.columns.length; c++) cols += " " + n.columns[c].name
+    }
+    var hay = (n.id + " " + (n.title || "") + " " + (n.actor || "") + " " + (n.tags ? n.tags.join(" ") : "") + cols).toLowerCase()
     if (hay.indexOf(q) >= 0) out.push(n)
   }
+  return out
+}
+
+// displayColumns returns up to max columns to draw on a table node: primary and
+// foreign keys first, then the rest in order. The full list stays in the inspector.
+function displayColumns(cols, max) {
+  max = max || 5
+  if (!cols || cols.length === 0) return []
+  if (cols.length <= max) return cols.slice(0)
+  var keys = [], rest = []
+  for (var i = 0; i < cols.length; i++) {
+    var c = cols[i]
+    if (c.pk || c.fk) keys.push(c); else rest.push(c)
+  }
+  var out = keys.slice(0, max)
+  for (var j = 0; j < rest.length && out.length < max; j++) out.push(rest[j])
   return out
 }

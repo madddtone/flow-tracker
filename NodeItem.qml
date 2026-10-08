@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Shapes
 import qs.Commons
+import "FlowModel.js" as FM
 
 // Renders a single flow node. Coordinates/size come from the compiled
 // node.rect; the parent delegates position it in world space.
@@ -20,7 +21,14 @@ Item {
   readonly property var r: node.rect
   readonly property bool isDecision: node.type === "decision"
   readonly property bool isTerminal: node.type === "start" || node.type === "end"
+  readonly property bool isTable: node.type === "table"
   readonly property bool hasSubflow: (node.subflowJson || "").length > 0
+  readonly property color tableColor: Qt.rgba(0.31, 0.79, 0.69, 1.0)
+  readonly property bool hasMoreColumns: (node.columns ? node.columns.length : 0) > 5
+  readonly property int hiddenColumns: (node.columns ? node.columns.length : 0) - displayCols().length
+
+  function displayCols() { return FM.displayColumns(node.columns, 5) }
+
   readonly property string meta: {
     var a = node.actor || ""
     var c = node.code || ""
@@ -49,6 +57,7 @@ Item {
     case "decision": return Color.urgent
     case "subflow": return Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.85)
     case "external": return Color.muted
+    case "table": return tableColor
     default: return Color.foreground
     }
   }
@@ -109,11 +118,89 @@ Item {
   Item {
     id: content
     anchors.fill: parent
-    anchors.leftMargin: nodeItem.isDecision ? 34 : (nodeItem.isTerminal ? 20 : 16)
-    anchors.rightMargin: nodeItem.isDecision ? 34 : (nodeItem.isTerminal ? 20 : 16)
-    anchors.topMargin: nodeItem.isDecision ? 12 : 9
-    anchors.bottomMargin: nodeItem.isDecision ? 12 : 9
+    anchors.leftMargin: nodeItem.isTable ? 0 : (nodeItem.isDecision ? 34 : (nodeItem.isTerminal ? 20 : 16))
+    anchors.rightMargin: nodeItem.isTable ? 0 : (nodeItem.isDecision ? 34 : (nodeItem.isTerminal ? 20 : 16))
+    anchors.topMargin: nodeItem.isTable ? 0 : (nodeItem.isDecision ? 12 : 9)
+    anchors.bottomMargin: nodeItem.isTable ? 0 : (nodeItem.isDecision ? 12 : 9)
     clip: true
+
+    // Tables: a header band + column rows (first 5; the rest in the inspector).
+    Column {
+      visible: nodeItem.isTable
+      anchors { top: parent.top; left: parent.left; right: parent.right }
+
+      Rectangle {
+        width: parent.width
+        height: 24
+        color: Qt.rgba(nodeItem.tableColor.r, nodeItem.tableColor.g, nodeItem.tableColor.b, 0.18)
+        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1
+          color: Qt.rgba(nodeItem.tableColor.r, nodeItem.tableColor.g, nodeItem.tableColor.b, 0.6) }
+        Text {
+          anchors.left: parent.left; anchors.leftMargin: 8; anchors.verticalCenter: parent.verticalCenter
+          width: parent.width - 70
+          text: nodeItem.node.title || nodeItem.node.id
+          color: Color.foreground; font.family: Style.font.family; font.pixelSize: 11; font.bold: true
+          elide: Text.ElideRight
+        }
+        Text {
+          visible: (nodeItem.node.schema || "").length > 0
+          anchors.right: parent.right; anchors.rightMargin: 8; anchors.verticalCenter: parent.verticalCenter
+          text: nodeItem.node.schema || ""
+          color: Color.muted; font.family: Style.font.family; font.pixelSize: 9
+        }
+      }
+
+      Repeater {
+        model: nodeItem.displayCols()
+        delegate: Item {
+          required property var modelData
+          width: parent.width
+          height: 18
+          Text {
+            anchors.left: parent.left; anchors.leftMargin: 8; anchors.verticalCenter: parent.verticalCenter
+            text: modelData.name
+            color: Color.foreground; font.family: Style.font.family; font.pixelSize: 10
+            elide: Text.ElideRight
+            width: parent.width * 0.5
+          }
+          Row {
+            anchors.right: parent.right; anchors.rightMargin: 8; anchors.verticalCenter: parent.verticalCenter
+            spacing: 4
+            Rectangle {
+              visible: modelData.pk === true
+              radius: 3; color: Qt.rgba(nodeItem.tableColor.r, nodeItem.tableColor.g, nodeItem.tableColor.b, 0.25)
+              implicitWidth: pkText.implicitWidth + 6; implicitHeight: 12
+              Text { id: pkText; anchors.centerIn: parent; text: "PK"; color: nodeItem.tableColor
+                font.family: Style.font.family; font.pixelSize: 7; font.bold: true }
+            }
+            Rectangle {
+              visible: (modelData.fk || "").length > 0
+              radius: 3; color: Qt.rgba(nodeItem.tableColor.r, nodeItem.tableColor.g, nodeItem.tableColor.b, 0.25)
+              implicitWidth: fkText.implicitWidth + 6; implicitHeight: 12
+              Text { id: fkText; anchors.centerIn: parent; text: "FK"; color: nodeItem.tableColor
+                font.family: Style.font.family; font.pixelSize: 7; font.bold: true }
+            }
+            Text {
+              visible: (modelData.type || "").length > 0
+              anchors.verticalCenter: parent.verticalCenter
+              text: modelData.type || ""
+              color: Color.muted; font.family: Style.font.family; font.pixelSize: 9
+            }
+          }
+        }
+      }
+
+      Item {
+        width: parent.width
+        height: 16
+        visible: nodeItem.hasMoreColumns
+        Text {
+          anchors.centerIn: parent
+          text: "+" + nodeItem.hiddenColumns + " more column" + (nodeItem.hiddenColumns === 1 ? "" : "s") + " (see details)"
+          color: Color.muted; font.family: Style.font.family; font.pixelSize: 8
+        }
+      }
+    }
 
     // Decisions: only the title and id, centered in the diamond.
     Column {
@@ -146,7 +233,7 @@ Item {
 
     // Other shapes: title/id from the top, meta/subflow pinned to the bottom.
     Column {
-      visible: !nodeItem.isDecision
+      visible: !nodeItem.isDecision && !nodeItem.isTable
       anchors { top: parent.top; left: parent.left; right: parent.right }
       spacing: 2
       Text {
@@ -174,7 +261,7 @@ Item {
 
     Text {
       id: metaText
-      visible: !nodeItem.isDecision && text.length > 0
+      visible: !nodeItem.isDecision && !nodeItem.isTable && text.length > 0
       anchors {
         left: parent.left
         right: parent.right
@@ -191,7 +278,7 @@ Item {
 
     Rectangle {
       id: subflowStrip
-      visible: !nodeItem.isDecision && nodeItem.hasSubflow
+      visible: !nodeItem.isDecision && !nodeItem.isTable && nodeItem.hasSubflow
       anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
       height: 15
       radius: 4
