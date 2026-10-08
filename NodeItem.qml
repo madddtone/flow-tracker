@@ -103,7 +103,7 @@ Item {
 
   // Type stripe for non-decision, non-terminal cards.
   Rectangle {
-    visible: !nodeItem.isDecision && !nodeItem.isTerminal
+    visible: !nodeItem.isDecision && !nodeItem.isTerminal && !nodeItem.isTable
     width: 4
     height: parent.height - 22
     radius: 2
