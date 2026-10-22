@@ -39,6 +39,15 @@ Item {
   property bool projectsOpen: false
   property int projectsIndex: 0
 
+  // PNG export state.
+  property bool exporting: false
+  property real exportW: 800
+  property real exportH: 600
+  property real exportMinX: 0
+  property real exportMinY: 0
+  property string exportStatus: ""
+  property var pendingExport: null
+
   // Subflow navigation: rootJsonPath is the active project's document;
   // flowJsonPath is whatever is currently rendered (root or a subflow).
   property string rootJsonPath: ""
@@ -181,6 +190,43 @@ Item {
   function resetPositions() {
     root.posOverrides = ({})
     root.fit()
+  }
+
+  // ---------------------------------------------------------------- export
+
+  function exportImage() {
+    var g = root.nodesModel
+    if (!g || g.length === 0 || root.exporting) return
+    var b = root.effBounds()
+    var pad = 40, headerH = 54
+    root.exportMinX = b.minX
+    root.exportMinY = b.minY
+    root.exportW = b.width + pad * 2
+    root.exportH = b.height + pad * 2 + headerH
+    var title = root.viewTitle.length > 0 ? root.viewTitle
+      : (root.flowName.length > 0 ? root.flowName : "flow")
+    var slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "flow"
+    var dir = Quickshell.env("HOME") + "/Pictures/flow-tracker"
+    var path = dir + "/" + slug + "-" + Qt.formatDateTime(new Date(), "yyyyMMdd-HHmmss") + ".png"
+    root.pendingExport = function () { root.doGrab(path) }
+    mkdirProc.command = ["/usr/bin/mkdir", "-p", dir]
+    mkdirProc.running = true
+    root.exporting = true
+  }
+
+  function doGrab(path) {
+    Qt.callLater(function () {
+      var s = Math.min(2.0, 12000 / Math.max(root.exportW, root.exportH))
+      s = Math.max(1.0, s)
+      var w = Math.round(root.exportW * s)
+      var h = Math.round(root.exportH * s)
+      exportScene.grabToImage(function (result) {
+        var ok = result && result.saveToFile(path)
+        root.exportStatus = ok ? ("Saved image: " + path) : "Export failed"
+        root.exporting = false
+        statusTimer.restart()
+      }, Qt.size(w, h))
+    })
   }
 
   function clearActiveFlow() {
@@ -518,6 +564,23 @@ Item {
     }
   }
 
+  Process {
+    id: mkdirProc
+    running: false
+    onExited: function (exitCode) {
+      var fn = root.pendingExport
+      root.pendingExport = null
+      if (fn) fn()
+    }
+  }
+
+  Timer {
+    id: statusTimer
+    interval: 4000
+    repeat: false
+    onTriggered: root.exportStatus = ""
+  }
+
   // FileView can miss atomic-rename writes; poll while open.
   Timer {
     interval: 1500
@@ -588,6 +651,8 @@ Item {
           root.dismiss(); event.accepted = true; break
         case Qt.Key_P:
           root.openProjects(); event.accepted = true; break
+        case Qt.Key_E:
+          root.exportImage(); event.accepted = true; break
         case Qt.Key_Slash:
           root.openSearch(); event.accepted = true; break
         case Qt.Key_D:
@@ -1123,15 +1188,100 @@ Item {
     // ---------------------------------------------------------- footer hints
 
     Rectangle {
+      id: footerBar
       anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
       height: 30
       color: Qt.rgba(Color.background.r, Color.background.g, Color.background.b, 0.85)
       Text {
         anchors.centerIn: parent
-        text: "click: trace · drag node: move · drag bg: pan · dbl-click subflow: open · d: next/full · /: find · p: projects · r: reset layout · f: fit · q: close"
+        text: "click: trace · drag node: move · drag bg: pan · dbl-click subflow: open · d: next/full · /: find · p: projects · e: export png · r: reset layout · f: fit · q: close"
         color: Color.muted
         font.family: Style.font.family
         font.pixelSize: 10
+      }
+    }
+
+    // Transient export status.
+    Rectangle {
+      visible: root.exportStatus.length > 0
+      anchors { right: parent.right; bottom: footerBar.top; rightMargin: 18; bottomMargin: 10 }
+      width: Math.min(560, panel.width - 36)
+      height: 30
+      radius: 6
+      color: Color.menu.background
+      border.width: 1
+      border.color: Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.5)
+      Text {
+        anchors.fill: parent
+        anchors.leftMargin: 10
+        anchors.rightMargin: 10
+        text: root.exportStatus
+        color: Color.foreground
+        font.family: Style.font.family
+        font.pixelSize: 10
+        elide: Text.ElideMiddle
+        verticalAlignment: Text.AlignVCenter
+      }
+    }
+
+    // Offscreen scene rendered by grabToImage for PNG export.
+    Item {
+      id: exportScene
+      visible: root.exporting
+      x: -root.exportW - 200
+      y: 0
+      width: root.exportW
+      height: root.exportH
+
+      Rectangle { anchors.fill: parent; color: Color.background }
+      Text {
+        x: 40; y: 16
+        text: root.viewTitle.length > 0 ? root.viewTitle
+          : (root.flowName.length > 0 ? root.flowName : "flow")
+        color: Color.foreground
+        font.family: Style.font.family
+        font.pixelSize: 18
+        font.bold: true
+      }
+      Text {
+        x: 40; y: 42
+        text: root.nodesModel.length + " nodes · " + root.edgesModel.length + " edges"
+        color: Color.muted
+        font.family: Style.font.family
+        font.pixelSize: 11
+      }
+
+      Item {
+        id: exportGraph
+        x: 40 - root.exportMinX
+        y: 40 + 54 - root.exportMinY
+
+        Repeater {
+          model: root.edgesModel
+          delegate: EdgeItem {
+            required property var modelData
+            edge: modelData
+            sourceRect: root.effRect(modelData.from)
+            targetRect: root.effRect(modelData.to)
+            worldW: root.exportW + 400
+            worldH: root.exportH + 400
+            level: root.edgeLevel(modelData)
+          }
+        }
+        Repeater {
+          model: root.nodesModel
+          delegate: NodeItem {
+            required property var modelData
+            node: modelData
+            x: root.nodePos(modelData).x
+            y: root.nodePos(modelData).y
+            isSelected: modelData.id === root.selectedId
+            isSuccessor: root.nodeLevel(modelData.id) === "successor"
+            isDownstream: root.nodeLevel(modelData.id) === "downstream"
+            isAncestor: root.nodeLevel(modelData.id) === "ancestor"
+            isDim: root.isDimNode(modelData.id)
+          }
+        }
       }
     }
   }

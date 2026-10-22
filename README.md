@@ -11,6 +11,9 @@ Plugin id: `io.github.madddtone.flow-tracker`
 - Adds a **bar icon** (sitemap glyph) in the right section; click it to open
   the canvas. Also bound to `SUPER + CTRL + G`.
 - Draws the whole flow with a deterministic layered layout.
+- **Export PNG** (`e`) — saves the entire graph (not just the viewport) at high
+  resolution to `~/Pictures/flow-tracker/`, including a title header and the
+  current trace.
 - **Table nodes** (`type: table`) render a header + columns with PK/FK badges —
   the first 5 key columns on the node, all of them in the inspector. Handy for
   data-flow diagrams.
@@ -81,6 +84,7 @@ o.bind("SUPER + CTRL + G", "Flow Tracker", "omarchy-shell shell toggle io.github
 | `→` / `↓` | step to a successor |
 | `d` | toggle immediate vs full-downstream trace |
 | `p` | open the project switcher |
+| `e` | export the whole graph as a high-resolution PNG |
 | scroll | zoom at cursor |
 | drag | pan |
 | `f` | fit to screen |
